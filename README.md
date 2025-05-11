@@ -1,3 +1,5 @@
+
+
 # 지역 상권 혼잡도 분석 프로젝트
 
 > 각 업종별 점포 수, 인구 수, 성비 등의 지역 데이터를 바탕으로 혼잡도를 분석하는 모델 생성
@@ -80,42 +82,6 @@ w₃ × 성비 편차 비율
 ---
 
 ## 데이터베이스 테이블 설계
-
-### `region` (지역 정보)
-
-| 필드명 | 타입 | 설명 |
-|--------|------|------|
-| region_id | INT | 지역 고유 ID (PK) |
-| name | VARCHAR | 행정동/구 이름 |
-| area_km2 | FLOAT | 지역 면적 (제곱킬로미터) |
-
----
-
-### `population_stats` (인구 통계)
-
-| 필드명 | 타입 | 설명 |
-|--------|------|------|
-| id | INT | PK |
-| region_id | INT | FK → region |
-| date | DATE | 기준 일자 |
-| total | INT | 전체 인구 수 |
-| male | INT | 남성 인구 수 |
-| female | INT | 여성 인구 수 |
-
----
-
-### `restaurant_stats` (업종별 점포 수)
-
-| 필드명 | 타입 | 설명 |
-|--------|------|------|
-| id | INT | PK |
-| region_id | INT | FK → region |
-| business_type | VARCHAR | 업종 구분 (예: 한식, 중식, 카페 등) |
-| count | INT | 해당 업종 점포 수 |
-| date | DATE | 기준 일자 |
-
----
-
 ### `congestion_score` (혼잡도 분석 결과)
 
 | 필드명 | 타입 | 설명 |
