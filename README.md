@@ -88,8 +88,6 @@ w₃ × 성비 편차 비율
 | region_id | INT | 지역 고유 ID (PK) |
 | name | VARCHAR | 행정동/구 이름 |
 | area_km2 | FLOAT | 지역 면적 (제곱킬로미터) |
-| lat | FLOAT | 중심 위도 |
-| lng | FLOAT | 중심 경도 |
 
 ---
 
