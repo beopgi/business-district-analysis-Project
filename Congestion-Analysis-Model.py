@@ -1,10 +1,10 @@
 import requests
 import xml.etree.ElementTree as ET
 
-# 🔑 서비스 키 (원본 그대로 사용 가능)
+
 SERVICE_KEY = "igL+egVF9JN81AyFNoazNQWMirW9PqA6dJq6XjlAEo6xrBpEYD9XDLbJGsgwbmhjQCt477VACYblAWTSvTG8uw=="
 
-# ✅ 업종 대분류명 → 코드
+#업종 분류 코드
 INDUSTRY_MAP = {
     "음식점": "I2",
     "숙박": "I1",
@@ -14,7 +14,7 @@ INDUSTRY_MAP = {
     "보건의료": "Q1"
 }
 
-# ✅ 지역명 → 시군구코드 (signguCd)
+# 시군구 분류 코드드
 SIGNGU_CODE_MAP = {
     "서울특별시 종로구": "11110",
     "서울특별시 중구": "11140",
@@ -287,7 +287,7 @@ SIGNGU_CODE_MAP = {
 }
 
 
-# ✅ 행정동 코드 조회
+#행정동 코드 조회
 def get_adong_code(signguCd, dong_name):
     url = "http://apis.data.go.kr/B553077/api/open/sdsc2/baroApi"
     params = {
@@ -305,7 +305,7 @@ def get_adong_code(signguCd, dong_name):
             return item.findtext("adongCd")
     return None
 
-# ✅ 점포 수 조회
+#점포 수 조회
 def get_store_count(adong_cd, indsLclsCd):
     url = "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInDong"
     params = {
@@ -322,7 +322,6 @@ def get_store_count(adong_cd, indsLclsCd):
     count = root.findtext(".//totalCount")
     return int(count) if count else 0
 
-# ✅ 메인 실행 로직
 if __name__ == "__main__":
     location_input = input("지역명을 입력하세요 (예: 부산광역시 사하구 하단1동): ").strip()
     industry_input = input("업종명을 입력하세요 (예: 음식점): ").strip()
