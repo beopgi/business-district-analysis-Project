@@ -1,8 +1,10 @@
+# flake8: noqa
 import requests
+import pandas as pd
 import xml.etree.ElementTree as ET
 
-
 SERVICE_KEY = "igL+egVF9JN81AyFNoazNQWMirW9PqA6dJq6XjlAEo6xrBpEYD9XDLbJGsgwbmhjQCt477VACYblAWTSvTG8uw=="
+POP_URL = "https://api.odcloud.kr/api/15097972/v1/uddi:780a2373-bf11-4fb6-b3e4-ed4119571817"
 
 #업종 대분류 코드
 INDUSTRY_MAP = {
@@ -622,9 +624,13 @@ SIGNGU_CODE_MAP = {
 
 }
 
-
-#행정동 코드 조회
-def get_adong_code(signguCd, dong_name):
+# 행정동 코드 조회
+def get_adong_codes(signguCd: str, root_name: str) -> list:
+    """
+    '하단동'처럼 루트명만 입력하면,
+    '하단제1동','하단제2동' 등 모두 찾아서 코드 리스트로 반환.
+    """
+    prefix = root_name.rstrip("동")  # '하단동'->'하단'
     url = "http://apis.data.go.kr/B553077/api/open/sdsc2/baroApi"
     params = {
         "resId": "dong",
@@ -633,81 +639,102 @@ def get_adong_code(signguCd, dong_name):
         "serviceKey": SERVICE_KEY,
         "type": "xml"
     }
-    response = requests.get(url, params=params)
-    root = ET.fromstring(response.text)
-    items = root.find("body").find("items")
-    for item in items.findall("item"):
-        if dong_name.strip() == item.findtext("adongNm").strip():
-            return item.findtext("adongCd")
-    return None
+    resp = requests.get(url, params=params)
+    root = ET.fromstring(resp.text)
 
-#점포 수 조회
-def get_store_count(adong_cd, indsCd, level):
+    codes = []
+    for item in root.find("body").find("items").findall("item"):
+        api_name = item.findtext("adongNm")  # e.g. "하단제1동"
+        if api_name.startswith(prefix):
+            codes.append(item.findtext("adongCd"))
+    return codes
+
+# 점포 수 조회
+def get_store_count(adong_cd: str, indsCd: str, level: str) -> int:
     url = "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInDong"
-
-    inds_param = {
-        "1": "indsLclsCd",
-        "2": "indsMclsCd",
-        "3": "indsSclsCd"
-    }[level]
-
+    inds_param = {"1":"indsLclsCd","2":"indsMclsCd","3":"indsSclsCd"}[level]
     params = {
         "divId": "adongCd",
         "key": adong_cd,
-        inds_param: indsCd, 
+        inds_param: indsCd,
         "numOfRows": 1,
         "pageNo": 1,
         "type": "xml",
         "serviceKey": SERVICE_KEY
     }
-
-    response = requests.get(url, params=params)
-    root = ET.fromstring(response.text)
+    resp = requests.get(url, params=params)
+    root = ET.fromstring(resp.text)
     count = root.findtext(".//totalCount")
     return int(count) if count else 0
 
+#인구 수 조회
+def get_population(root_name: str) -> tuple:
+    prefix = root_name.rstrip("동")
+    page = 1
+    per_page = 1000
+    records = []
+
+    while True:
+        params = {
+            "serviceKey": SERVICE_KEY, 
+            "page": page,
+            "perPage": per_page,
+            "type": "json"
+        }
+        resp = requests.get(POP_URL, params=params)
+        resp.raise_for_status()
+        chunk = resp.json().get("data", [])
+        if not chunk:
+            break
+        records.extend(chunk)
+        page += 1
+
+    df = pd.DataFrame(records)
+    mask = df["읍면동명"].str.startswith(prefix)
+    total  = df.loc[mask, "계"].astype(int).sum()
+    male   = df.loc[mask, "남자"].astype(int).sum()
+    female = df.loc[mask, "여자"].astype(int).sum()
+    return total, male, female
 
 if __name__ == "__main__":
-    location_input = input("지역명을 입력하세요 (예: 부산광역시 사하구 하단1동): ").strip()
-    dinput = input("분류를 선택하세요.(대 = 1,중 = 2,소 = 3):").strip()
+    location_input = input("지역명을 입력하세요 (예: 부산광역시 사하구 하단동): ").strip()
+    level = input("분류를 선택하세요.(대 = 1,중 = 2,소 = 3): ").strip()
     industry_input = input("업종명을 입력하세요: ").strip()
+
     try:
-        si, gu, dong = location_input.split()
+        si, gu, root_dong = location_input.split()
     except ValueError:
-        print("입력은 '시도 시군구 행정동' 순으로 공백 포함 세 단어여야 합니다.")
+        print("입력은 '시도 시군구 행정동(예: 하단동)' 순으로 공백 포함 세 단어여야 합니다.")
         exit()
 
     region_key = f"{si} {gu}"
     signguCd = SIGNGU_CODE_MAP.get(region_key)
     if not signguCd:
-        print(f"'{region_key}' 에 해당하는 시군구코드가 등록되어 있지 않습니다.")
+        print(f"'{region_key}'에 해당하는 시군구코드가 없습니다.")
         exit()
 
-    adongCd = get_adong_code(signguCd, dong)
-    if not adongCd:
-        print(f"'{dong}' 에 해당하는 행정동 코드를 찾을 수 없습니다.")
+    # 루트명(하단동)으로 시작하는 모든 동 코드
+    codes = get_adong_codes(signguCd, root_dong)
+    if not codes:
+        print(f"'{root_dong}'에 해당하는 행정동 코드가 없습니다.")
         exit()
 
-    if dinput == "1":
+    # 업종 코드 선택
+    if level == "1":
         indsCd = INDUSTRY_MAP.get(industry_input)
-        if not indsCd:
-            print(f" '{industry_input}' 은(는) 지원하지 않는 업종입니다.")
-            exit()
-        count = get_store_count(adongCd, indsCd, dinput)
-        print(f"\n[{dong}] {industry_input} 점포 수: {count}개")
-
-    elif dinput == "2":
+    elif level == "2":
         indsCd = MIDDLE_INDUSTRY_MAP.get(industry_input)
-        if not indsCd:
-            print(f" '{industry_input}' 은(는) 지원하지 않는 업종입니다.")
-            exit()
-        count = get_store_count(adongCd, indsCd, dinput)
-        print(f"\n[{dong}] {industry_input} 점포 수: {count}개")
-
-    elif dinput == "3":
+    else:
         indsCd = SUB_INDUSTRY_MAP.get(industry_input)
-        if not indsCd:
-            print(f" '{industry_input}' 은(는) 지원하지 않는 업종입니다.")
-            exit()
-        count = get_store_count(adongCd, indsCd, dinput)
-        print(f"\n[{dong}] {industry_input} 점포 수: {count}개")
+
+    if not indsCd:
+        print(f"'{industry_input}'은(는) 지원하지 않는 업종입니다.")
+        exit()
+
+     # 1) 점포 수 합산
+    total_stores = sum(get_store_count(code, indsCd, level) for code in codes)
+    print(f"\n[{root_dong}] '{industry_input}' 점포 수 합계: {total_stores}개")
+
+    # 2) 인구 합산
+    pop_total, pop_male, pop_female = get_population(root_dong)
+    print(f"[{root_dong}] 인구 합계: {pop_total}명 (남자 {pop_male}명, 여자 {pop_female}명)")
