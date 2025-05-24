@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>아이디 / 비밀번호 찾기</title>
+  <style>
+    body {
+      background: #f3f6fb;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-top: 25px;
+      margin-bottom: 10px;
+    }
+
+    .input-field {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: #3498db;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    .btn-link {
+      display: block;
+      text-align: center;
+      color: #3498db;
+      text-decoration: none;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .btn-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+
+  <script>
+    async function findId() {
+      const name = document.getElementById('find-id-name').value;
+
+      const res = await fetch('/api/v1/find-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+
+      const result = await res.text();
+      alert(result);
+    }
+
+    async function findPw() {
+  const userid = document.getElementById('find-pw-id').value;
+  const name = document.getElementById('find-pw-name').value;
+
+  const res = await fetch('/api/v1/find_pw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userid, name })
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    alert("비밀번호 변경 페이지로 이동합니다.");
+    location.href = '/reset_pw?id=' + encodeURIComponent(data.id);
+  } else {
+    const msg = await res.text();
+    alert(msg);
+  }
+}
+
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h2>🔍 아이디 찾기</h2>
+    <input id="find-id-name" class="input-field" placeholder="이름 입력" />
+    <button onclick="findId()" class="btn-submit">아이디 찾기</button>
+
+    <h2>🔐 비밀번호 찾기</h2>
+    <input id="find-pw-id" class="input-field" placeholder="아이디 입력" />
+    <input id="find-pw-name" class="input-field" placeholder="이름 입력" />
+    <button onclick="findPw()" class="btn-submit">비밀번호 찾기</button>
+
+    <a href="/login" class="btn-link">로그인으로 돌아가기</a>
+  </div>
+</body>
+</html>
