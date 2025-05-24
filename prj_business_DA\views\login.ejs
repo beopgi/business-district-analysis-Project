@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>로그인</title>
+  <style>
+    body {
+      background: #f3f6fb;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    .input-field {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .btn-submit {
+      width: 100%;
+      background: #3498db;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+  <script>
+    async function loginUser() {
+      const userid = document.getElementById('userid').value;
+      const password = document.getElementById('password').value;
+
+      if (!userid.trim() || !password.trim()) {
+        alert("아이디와 비밀번호를 입력하세요.");
+        return;
+      }
+
+      const res = await fetch('/api/v1/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userid, password })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        location.href = '/main?id=' + encodeURIComponent(data.id);
+    } else {
+        alert("로그인 실패: 아이디 또는 비밀번호가 틀렸습니다.");
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h2>로그인</h2>
+    <input id="userid" class="input-field" placeholder="아이디 입력" />
+    <input id="password" class="input-field" type="password" placeholder="비밀번호 입력" />
+    <button class="btn-submit" onclick="loginUser()">로그인</button>
+    <a href="/find" class="btn-link">아이디 / 비밀번호 찾기</a>
+  </div>
+</body>
+</html>
