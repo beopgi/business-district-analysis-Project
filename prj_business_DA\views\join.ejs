@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>회원가입</title>
+  <style>
+    body {
+      background: #f3f6fb;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    .input-field {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: #2ecc71;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-link {
+      display: block;
+      text-align: center;
+      margin-top: 12px;
+      color: #3498db;
+      text-decoration: none;
+      font-weight: bold;
+}
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+  </style>
+  
+  <script>
+    const emailRegex = /^[^\s@]+@[^\s@]+\.com$/;
+    const phoneRegex = /^010-\d{4}-\d{4}$/;
+    const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8}$/;
+    const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8}$/;
+
+    async function registerUser() {
+      const name = document.getElementById('name').value;
+      const phone = document.getElementById('phone').value;
+      const email = document.getElementById('email').value;
+      const userid = document.getElementById('userid').value;
+      const password = document.getElementById('password').value;
+
+      if (!name.trim() || !phone.trim() || !email.trim() || !userid.trim() || !password.trim()) {
+        alert("모든 항목을 입력해 주세요.");
+        return;
+      }
+      if (!phoneRegex.test(phone)) {
+        alert("전화번호는 010-1234-5678 형식으로 입력해주세요.");
+        return;
+      }
+      if (!emailRegex.test(email)) {
+        alert("이메일 형식이 올바르지 않습니다. 예: abcd@gmail.com");
+        return;
+      }
+      if (!idRegex.test(userid)) {
+        alert("아이디는 영문+숫자 조합 8자리여야 합니다.");
+        return;
+      }
+      if (!pwRegex.test(password)) {
+        alert("비밀번호는 영문+숫자 조합 8자리여야 합니다.");
+        return;
+      }
+
+
+
+      const res = await fetch('/api/v1/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, email, userid, password })
+      });
+
+      if (res.ok) {
+      location.href = '/welcome';  // ✅ 가입 성공 시 welcome 페이지로 이동
+      }
+      else {
+        const msg = await res.text();
+        alert("회원가입 실패: " + msg);
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h2>회원가입</h2>
+    <input id="name" class="input-field" placeholder="이름 입력" />
+    <input id="phone" class="input-field" placeholder="전화번호 (예: 010-1234-5678)" />
+    <input id="email" class="input-field" placeholder="이메일 (예: abcd1234@gmail.com)" />
+    <input id="userid" class="input-field" placeholder="아이디 입력 (8자리, 영문+숫자)" />
+    <input id="password" class="input-field" type="password" placeholder="비밀번호 입력 (8자리, 영문+숫자)" />
+    <button class="btn-submit" onclick="registerUser()">가입하기</button>
+    <a href="/login" class="btn-link">이미 계정이 있으신가요? 로그인하기</a>
+  </div>
+</body>
+</html>
