@@ -1,0 +1,19 @@
+-- DROP TABLE IF EXISTS bda_user; #초기화 트리거. 쓸거면 각주표시 지우면 됨
+CREATE TABLE bda_user (
+	user_index bigint not null auto_increment PRIMARY KEY,
+	user_name VARCHAR(30) NOT NULL,
+    phone VARCHAR(13) CHECK (
+		phone REGEXP '^010-[0-9]{4}-[0-9]{4}$'),
+    email VARCHAR(50) CHECK (
+		email LIKE '%@%' AND email LIKE '%.com'
+	), 
+    id VARCHAR(8) NOT NULL UNIQUE,
+    CHECK (
+		id REGEXP '^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8}$'
+    ),
+    pw VARCHAR(8) NOT NULL UNIQUE,
+    CHECK (
+		pw REGEXP '^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8}$'
+    )
+);
+*/
