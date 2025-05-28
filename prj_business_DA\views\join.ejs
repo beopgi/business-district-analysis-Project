@@ -57,8 +57,9 @@
   <script>
     const emailRegex = /^[^\s@]+@[^\s@]+\.com$/;
     const phoneRegex = /^010-\d{4}-\d{4}$/;
-    const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8}$/;
-    const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8}$/;
+    const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
+    const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
+
 
     async function registerUser() {
       const name = document.getElementById('name').value;
@@ -68,11 +69,11 @@
       const password = document.getElementById('password').value;
 
       if (!name.trim() || !phone.trim() || !email.trim() || !userid.trim() || !password.trim()) {
-        alert("모든 항목을 입력해 주세요.");
+        alert("모든 항목을 입력해 주십시오.");
         return;
       }
       if (!phoneRegex.test(phone)) {
-        alert("전화번호는 010-1234-5678 형식으로 입력해주세요.");
+        alert("전화번호는 010-1234-5678 형식으로 입력해주십시오.");
         return;
       }
       if (!emailRegex.test(email)) {
@@ -80,11 +81,11 @@
         return;
       }
       if (!idRegex.test(userid)) {
-        alert("아이디는 영문+숫자 조합 8자리여야 합니다.");
+        alert("아이디는 영문+숫자 조합으로 8~16자 사이여야 합니다.");
         return;
       }
       if (!pwRegex.test(password)) {
-        alert("비밀번호는 영문+숫자 조합 8자리여야 합니다.");
+        alert("비밀번호는 영문+숫자 조합으로 8~16자 사이여야 합니다.");
         return;
       }
 
