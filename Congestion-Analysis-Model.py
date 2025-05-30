@@ -1,10 +1,18 @@
 # flake8: noqa
 import requests
 import pandas as pd
+import mysql.connector
+from datetime import datetime
+import os
 import xml.etree.ElementTree as ET
-
+import geopandas as gpd
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_KEY = "igL+egVF9JN81AyFNoazNQWMirW9PqA6dJq6XjlAEo6xrBpEYD9XDLbJGsgwbmhjQCt477VACYblAWTSvTG8uw=="
 POP_URL = "https://api.odcloud.kr/api/15097972/v1/uddi:780a2373-bf11-4fb6-b3e4-ed4119571817"
+
+EXCEL_PATH = os.path.join(BASE_DIR, "센서스 공간정보 지역 코드.xlsx")
+SHP_PATH = os.path.join(BASE_DIR, "BND_ADM_DONG_PG", "BND_ADM_DONG_PG.shp")
+
 
 #업종 대분류 코드
 INDUSTRY_MAP = {
@@ -623,14 +631,78 @@ SIGNGU_CODE_MAP = {
     "제주특별자치도 서귀포시": "50130",
 
 }
+def connect_db():
+    return mysql.connector.connect(
+        host="localhost", user="root", password="5625", database="business_district"
+    )
+
+def get_max_value(metric_type):
+    conn = connect_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT max_value FROM congestion_max_values WHERE metric_type = %s", (metric_type,))
+    result = cursor.fetchone()
+    conn.close()
+    return result["max_value"] if result else 0
+
+def update_max_value(metric_type, new_value):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE congestion_max_values
+        SET max_value = %s
+        WHERE metric_type = %s AND max_value < %s
+    """, (new_value, metric_type, new_value))
+    conn.commit()
+    conn.close()
+
+def save_result_to_db(data):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM congestion_analysis
+        WHERE location = %s AND industry_name = %s AND industry_level = %s
+    """, (data["location"], data["industry_name"], data["industry_level"]))
+    cursor.execute("""
+        INSERT INTO congestion_analysis (
+            location, industry_level, industry_name, store_count,
+            population_total, population_male, population_female,
+            area_km2, population_density, store_density,
+            gender_bias, congestion_score, calculated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        data["location"],
+        data["industry_level"],
+        data["industry_name"],
+        int(data["store_count"]),
+        int(data["population_total"]),
+        int(data["population_male"]),
+        int(data["population_female"]),
+        float(data["area_km2"]),
+        float(data["population_density"]),
+        float(data["store_density"]),
+        data["gender_bias"],
+        float(data["congestion_score"]),
+        datetime.now()
+    ))
+    conn.commit()
+    conn.close()
+
+def get_gender_bias(m, f):
+    r = m / f if f else float("inf")
+    return "남초" if r >= 1.1 else "여초" if r <= 0.9 else "균형"
+
+def calc_score(sd, pd, max_sd, max_pd, m, f):
+    w1, w2, w3 = 0.5, 0.3, 0.2
+    t = m + f
+    gdiff = abs(m - f) / t if t else 0
+    gscore = 1 - (gdiff / 0.5)
+    sr = sd / max_sd if max_sd else 0
+    pr = pd / max_pd if max_pd else 0
+    return min(round(100 * (w1 * sr + w2 * pr + w3 * gscore), 2), 100.0)
 
 # 행정동 코드 조회
 def get_adong_codes(signguCd: str, root_name: str) -> list:
-    """
-    '하단동'처럼 루트명만 입력하면,
-    '하단제1동','하단제2동' 등 모두 찾아서 코드 리스트로 반환.
-    """
-    prefix = root_name.rstrip("동")  # '하단동'->'하단'
+    prefix = root_name.rstrip("동")
     url = "http://apis.data.go.kr/B553077/api/open/sdsc2/baroApi"
     params = {
         "resId": "dong",
@@ -644,7 +716,7 @@ def get_adong_codes(signguCd: str, root_name: str) -> list:
 
     codes = []
     for item in root.find("body").find("items").findall("item"):
-        api_name = item.findtext("adongNm")  # e.g. "하단제1동"
+        api_name = item.findtext("adongNm")
         if api_name.startswith(prefix):
             codes.append(item.findtext("adongCd"))
     return codes
@@ -667,7 +739,7 @@ def get_store_count(adong_cd: str, indsCd: str, level: str) -> int:
     count = root.findtext(".//totalCount")
     return int(count) if count else 0
 
-#인구 수 조회
+# 인구 수 조회
 def get_population(root_name: str) -> tuple:
     prefix = root_name.rstrip("동")
     page = 1
@@ -696,45 +768,100 @@ def get_population(root_name: str) -> tuple:
     female = df.loc[mask, "여자"].astype(int).sum()
     return total, male, female
 
+# 면적 계산 함수
+def get_area_km2(sido: str, sgg: str, emd: str) -> float:
+    df_code = pd.read_excel(EXCEL_PATH, header=None)
+    df_code.columns = ["시도코드", "시도명칭", "시군구코드", "시군구명칭", "읍면동코드", "읍면동명칭"]
+
+    emd_keyword = emd.replace("동", "")
+    filtered = df_code[
+        (df_code["시도명칭"] == sido) & 
+        (df_code["시군구명칭"] == sgg) & 
+        (df_code["읍면동명칭"].str.contains(emd_keyword))
+    ]
+    if filtered.empty:
+        raise ValueError(f"[ERROR] '{sido} {sgg} {emd}'에 해당하는 하위 동이 없습니다.")
+    
+    adm_codes = [
+        str(row["시도코드"]) + str(row["시군구코드"]) + str(row["읍면동코드"])
+        for _, row in filtered.iterrows()
+    ]
+
+    gdf = gpd.read_file(SHP_PATH, encoding='euc-kr')
+    gdf["ADM_CD"] = gdf["ADM_CD"].astype(str)
+    target = gdf[gdf["ADM_CD"].isin(adm_codes)].copy()
+    target = target.drop_duplicates(subset=["ADM_CD"])
+    if target.empty:
+        raise ValueError(f"[ERROR] SHP에서 ADM_CD {adm_codes}에 해당하는 Polygon이 없습니다.")
+    
+    target = target.to_crs(epsg=5179)
+    total_area_sqm = target.geometry.area.sum()
+    return total_area_sqm / 1_000_000  # ㎢
+
+# 메인 실행
 if __name__ == "__main__":
-    location_input = input("지역명을 입력하세요 (예: 부산광역시 사하구 하단동): ").strip()
-    level = input("분류를 선택하세요.(대 = 1,중 = 2,소 = 3): ").strip()
-    industry_input = input("업종명을 입력하세요: ").strip()
+    location = input("지역명 (예: 부산광역시 사하구 하단동): ").strip()
+    level = input("업종 분류 수준 (1=대, 2=중, 3=소): ").strip()
+    name = input("업종명: ").strip()
 
     try:
-        si, gu, root_dong = location_input.split()
-    except ValueError:
-        print("입력은 '시도 시군구 행정동(예: 하단동)' 순으로 공백 포함 세 단어여야 합니다.")
+        sido, sigungu, emd = location.split()
+    except:
+        print("❌ '시도 시군구 동' 형식으로 입력하세요.")
         exit()
 
-    region_key = f"{si} {gu}"
-    signguCd = SIGNGU_CODE_MAP.get(region_key)
+    reg_key = f"{sido} {sigungu}"
+    signguCd = SIGNGU_CODE_MAP.get(reg_key)
     if not signguCd:
-        print(f"'{region_key}'에 해당하는 시군구코드가 없습니다.")
+        print("❌ 시군구 코드 없음.")
         exit()
 
-    # 루트명(하단동)으로 시작하는 모든 동 코드
-    codes = get_adong_codes(signguCd, root_dong)
-    if not codes:
-        print(f"'{root_dong}'에 해당하는 행정동 코드가 없습니다.")
+    adong_codes = get_adong_codes(signguCd, emd)
+    if not adong_codes:
+        print("❌ 행정동 코드 없음.")
         exit()
 
-    # 업종 코드 선택
     if level == "1":
-        indsCd = INDUSTRY_MAP.get(industry_input)
+        indsCd = INDUSTRY_MAP.get(name)
     elif level == "2":
-        indsCd = MIDDLE_INDUSTRY_MAP.get(industry_input)
+        indsCd = MIDDLE_INDUSTRY_MAP.get(name)
     else:
-        indsCd = SUB_INDUSTRY_MAP.get(industry_input)
+        indsCd = SUB_INDUSTRY_MAP.get(name)
 
     if not indsCd:
-        print(f"'{industry_input}'은(는) 지원하지 않는 업종입니다.")
+        print("❌ 업종 코드 없음.")
         exit()
 
-     # 1) 점포 수 합산
-    total_stores = sum(get_store_count(code, indsCd, level) for code in codes)
-    print(f"\n[{root_dong}] '{industry_input}' 점포 수 합계: {total_stores}개")
+    store_count = sum(get_store_count(code, indsCd, level) for code in adong_codes)
+    total, male, female = get_population(emd)
+    area = get_area_km2(sido, sigungu, emd)
+    sd, pd = store_count / area, total / area
+    gender = get_gender_bias(male, female)
 
-    # 2) 인구 합산
-    pop_total, pop_male, pop_female = get_population(root_dong)
-    print(f"[{root_dong}] 인구 합계: {pop_total}명 (남자 {pop_male}명, 여자 {pop_female}명)")
+    max_sd = get_max_value("shop_density")
+    max_pd = get_max_value("population_density")
+    update_max_value("shop_density", sd)
+    update_max_value("population_density", pd)
+
+    score = calc_score(sd, pd, max_sd, max_pd, male, female)
+
+    save_result_to_db({
+    "location": location,
+    "industry_level": level,
+    "industry_name": name,
+    "store_count": int(store_count),
+    "population_total": int(total),
+    "population_male": int(male),
+    "population_female": int(female),
+    "area_km2": float(area),
+    "population_density": float(pd),
+    "store_density": float(sd),
+    "gender_bias": gender,
+    "congestion_score": float(score)
+    })
+
+    print(f"\n✅ [{location}] '{name}' 업종 혼잡도 결과")
+    print(f"- 점포 수: {store_count}개 | 면적: {area:.4f}㎢")
+    print(f"- 인구: 총 {total}명 (남: {male}, 여: {female})")
+    print(f"- 밀도: 점포 {sd:.2f}/㎢, 인구 {pd:.2f}/㎢")
+    print(f"- 성비: {gender} | 혼잡도 점수: {score}점")
