@@ -7,10 +7,13 @@ CREATE TABLE bda_user (
     email VARCHAR(50) CHECK (
 		email LIKE '%@%' AND email LIKE '%.com'
 	), 
-    id VARCHAR(8) NOT NULL UNIQUE,
+    id VARCHAR(16) NOT NULL UNIQUE,
     CHECK (
-		id REGEXP '^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8}$'
+		id REGEXP '^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,16}$'
     ),
-    pw VARCHAR(100) NOT NULL unique
+    pw VARCHAR(100) NOT NULL UNIQUE,
+    CHECK (
+		pw REGEXP '^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,16}$'
+    )
 );
 
