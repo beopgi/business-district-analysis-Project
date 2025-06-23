@@ -8,7 +8,6 @@
       background: #f3f6fb;
       font-family: 'Segoe UI', sans-serif;
     }
-
     .container {
       max-width: 400px;
       margin: 40px auto;
@@ -17,11 +16,9 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-
     h2 {
       margin-bottom: 20px;
     }
-
     .input-field {
       width: 100%;
       margin-bottom: 10px;
@@ -29,7 +26,6 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
-
     .btn-submit {
       width: 100%;
       background: #2ecc71;
@@ -47,19 +43,16 @@
       color: #3498db;
       text-decoration: none;
       font-weight: bold;
-}
-.btn-link:hover {
-  text-decoration: underline;
-}
-
+    }
+    .btn-link:hover {
+      text-decoration: underline;
+    }
   </style>
-  
   <script>
     const emailRegex = /^[^\s@]+@[^\s@]+\.com$/;
     const phoneRegex = /^010-\d{4}-\d{4}$/;
-    const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
-    const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
-
+    const idRegex = /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,16}$/;
+    const pwRegex = /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,16}$/;
 
     async function registerUser() {
       const name = document.getElementById('name').value;
@@ -89,18 +82,22 @@
         return;
       }
 
-
-
-      const res = await fetch('/api/v1/register', {
+      // 백엔드와 key 일치! (user_name, phone, email, id, pw)
+      const res = await fetch('/api/v1/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, email, userid, password })
+        body: JSON.stringify({ 
+          user_name: name, 
+          phone: phone, 
+          email: email, 
+          id: userid, 
+          pw: password 
+        })
       });
 
       if (res.ok) {
-      location.href = '/welcome';  // ✅ 가입 성공 시 welcome 페이지로 이동
-      }
-      else {
+        location.href = '/welcome';  // 가입 성공 시 welcome 페이지로 이동
+      } else {
         const msg = await res.text();
         alert("회원가입 실패: " + msg);
       }
