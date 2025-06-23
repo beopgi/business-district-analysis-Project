@@ -3,22 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <title>메인 페이지</title>
-<style>
-    .btn-link {
-  display: inline-block;
-  margin-top: 20px;
-  text-decoration: none;
-  color: #e74c3c;
-  font-weight: bold;
-}
-.btn-link:hover {
-  text-decoration: underline;
-}
-</style>
+  <style>
+    body {
+      background: #f3f6fb;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 { margin-bottom: 24px; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .btn-logout { background: #e74c3c; color: #fff; }
+    .btn-logout:hover { background: #c0392b; }
+    .btn-edit { background: #27ae60; color: #fff; }
+    .btn-edit:hover { background: #219150; }
+    .btn-download { background: #3498db; color: #fff; }
+    .btn-download:hover { background: #217dbb; }
+    .welcome {
+      margin-bottom: 24px;
+      font-size: 1.3em;
+      color: #2c3e50;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1><%= id %>님 반갑습니다! 🎉</h1>
-  <a href="/login" class="btn-link">로그아웃</a>
-  <p>이곳은 로그인한 사용자만 접근 가능한 메인 페이지입니다.</p>
+  <div class="container">
+    <div class="welcome"><%= id %>님 반갑습니다! 🎉</div>
+    <button class="btn btn-edit" onclick="location.href='/edit_user?id=<%= id %>'">회원정보 수정</button>
+    <a href="/api/v1/download/for_test.txt" class="btn btn-download">파일 다운로드</a>
+    <button class="btn btn-logout" onclick="location.href='/api/v1/logout'">로그아웃</button>
+    <p style="margin-top:18px;color:#888;">이곳은 로그인한 사용자만 접근 가능한 메인 페이지입니다.</p>
+  </div>
 </body>
 </html>
