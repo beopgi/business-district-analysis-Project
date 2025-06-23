@@ -1,120 +1,165 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const router = express.Router();
 const db = require('../../db_bda');
+const path = require('path');
+const fs = require('fs');
 
-const saltRounds = 10;
+// 정규식
+const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
+const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
 
-// ✅ 회원가입
-router.post('/register', async (req, res) => {
-  const { name, phone, email, userid, password } = req.body;
-  if (!name || !phone || !email || !userid || !password) {
-    return res.status(400).send('모든 항목을 입력해 주십시오.');
+/* 1. 회원가입 */
+router.post('/join', async (req, res) => {
+  let { user_name, phone, email, id, pw } = req.body;
+  phone = phone.replace(/-/g, '');
+  if (!user_name || !id || !pw) {
+    return res.status(400).json({ message: "이름, ID, 비밀번호는 필수입니다." });
   }
-
+  if (!idRegex.test(id)) {
+    return res.status(400).json({ message: "ID는 영문+숫자 8~16자입니다." });
+  }
+  if (!pwRegex.test(pw)) {
+    return res.status(400).json({ message: "비밀번호는 영문+숫자 8~16자입니다." });
+  }
   try {
-    const conn = await db.getConnection();
-    const hashedPw = await bcrypt.hash(password, saltRounds);
-    await conn.execute(
+    const [exists] = await db.query('SELECT * FROM bda_user WHERE id = ?', [id]);
+    if (exists.length > 0) {
+      return res.status(409).json({ message: "이미 존재하는 아이디입니다." });
+    }
+    // 암호화 없이 평문 pw로 저장
+    await db.query(
       'INSERT INTO bda_user (user_name, phone, email, id, pw) VALUES (?, ?, ?, ?, ?)',
-      [name, phone, email, userid, hashedPw]
+      [user_name, phone, email, id, pw]
     );
-    conn.release();
-    res.status(201).send('회원가입이 성공적으로 완료되었습니다.');
+    res.status(201).json({ message: "회원가입 성공" });
   } catch (err) {
-    console.error('회원가입 실패:', err);
-    res.status(500).send('DB 오류: ' + err.message);
+    console.error(err);
+    res.status(500).json({ message: "서버 오류" });
   }
 });
 
-// ✅ 로그인
+/* 2. 로그인 */
 router.post('/login', async (req, res) => {
-  const { userid, password } = req.body;
-  if (!userid || !password) {
-    return res.status(400).send('모든 항목을 입력해 주십시오.');
-  }
-
+  const { id, pw } = req.body;
   try {
-    const conn = await db.getConnection();
-    const [rows] = await conn.query('SELECT pw FROM bda_user WHERE id = ?', [userid]);
-    conn.release();
-
+    const [rows] = await db.query('SELECT * FROM bda_user WHERE id = ?', [id]);
     if (rows.length === 0) {
-      return res.status(401).send('아이디 또는 비밀번호가 불일치합니다.');
+      return res.status(401).json({ message: '존재하지 않는 아이디입니다.' });
     }
-
-    const match = await bcrypt.compare(password, rows[0].pw);
-
-    if (match) {
-      res.status(200).json({ id: userid });
-    } else {
-      res.status(401).send('아이디 또는 비밀번호가 불일치합니다.');
+    const user = rows[0];
+    // 암호화 없이 평문 비교
+    if (pw !== user.pw) {
+      return res.status(401).json({ message: '비밀번호가 일치하지 않습니다.' });
     }
+    req.session.userId = user.id;
+    res.json({ id: user.id });
   } catch (err) {
-    res.status(500).send('DB 오류: ' + err.message);
+    console.error(err);
+    res.status(500).json({ message: '서버 오류' });
   }
 });
 
-// ✅ 아이디 찾기
+/* 3. 아이디 찾기 */
 router.post('/find-id', async (req, res) => {
   const { name } = req.body;
   try {
-    const conn = await db.getConnection();
-    const [rows] = await conn.query('SELECT id FROM bda_user WHERE user_name = ?', [name]);
-    conn.release();
-
-    if (rows.length > 0) {
-      res.send(`당신의 아이디는: ${rows[0].id}`);
-    } else {
-      res.send('일치하는 사용자를 찾을 수 없습니다.');
+    const [rows] = await db.query('SELECT id FROM bda_user WHERE user_name = ?', [name]);
+    if (rows.length === 0) {
+      return res.status(404).send("해당 이름의 아이디를 찾을 수 없습니다.");
     }
+    res.send(`아이디: ${rows[0].id}`);
   } catch (err) {
-    res.status(500).send('DB 오류: ' + err.message);
+    console.error(err);
+    res.status(500).send("서버 오류");
   }
 });
 
-// ✅ 비밀번호 찾기 (확인만)
+/* 4. 비밀번호 찾기(비밀번호 변경 링크로 이동) */
 router.post('/find_pw', async (req, res) => {
-  const { userid, name } = req.body;
+  const { id, name } = req.body;
   try {
-    const conn = await db.getConnection();
-    const [rows] = await conn.query('SELECT id FROM bda_user WHERE id = ? AND user_name = ?', [userid, name]);
-    conn.release();
-
-    if (rows.length > 0) {
-      res.json({ id: userid }); // 클라이언트에서 이 id로 reset_pw로 이동
-    } else {
-      res.send('일치하는 정보를 찾을 수 없습니다.');
+    const [rows] = await db.query('SELECT id FROM bda_user WHERE id = ? AND user_name = ?', [id, name]);
+    if (rows.length === 0) {
+      return res.status(404).send("일치하는 정보가 없습니다.");
     }
+    res.json({ id: rows[0].id });
   } catch (err) {
-    res.status(500).send('DB 오류: ' + err.message);
+    console.error(err);
+    res.status(500).send("서버 오류");
   }
 });
 
-// ✅ 비밀번호 재설정
+/* 5. 비밀번호 재설정 */
 router.post('/reset_pw', async (req, res) => {
   const { id, newPw, confirmPw } = req.body;
-  if (!id || !newPw || !confirmPw) {
-    return res.status(400).send('모든 항목을 입력해 주십시오.');
+  if (!pwRegex.test(newPw)) {
+    return res.status(400).send("비밀번호는 영문+숫자 조합 8~16자여야 합니다.");
   }
   if (newPw !== confirmPw) {
-    return res.status(400).send('비밀번호와 확인 비밀번호가 일치하지 않습니다.');
+    return res.status(400).send("비밀번호와 확인 값이 일치하지 않습니다.");
   }
-
   try {
-    const hashedNewPw = await bcrypt.hash(newPw, saltRounds);
-    const conn = await db.getConnection();
-    const [result] = await conn.query('UPDATE bda_user SET pw = ? WHERE id = ?', [hashedNewPw, id]);
-    conn.release();
-
-    if (result.affectedRows > 0) {
-      res.status(200).send('비밀번호가 성공적으로 변경되었습니다.');
-    } else {
-      res.status(400).send('비밀번호 변경 실패: 사용자 없음');
+    // 평문으로 비밀번호 저장
+    const [result] = await db.query('UPDATE bda_user SET pw = ? WHERE id = ?', [newPw, id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).send("해당 아이디가 존재하지 않습니다.");
     }
+    res.send("비밀번호가 성공적으로 변경되었습니다.");
   } catch (err) {
-    res.status(500).send('DB 오류: ' + err.message);
+    console.error(err);
+    res.status(500).send("서버 오류");
   }
+});
+
+/* 6. 회원정보 수정 */
+router.post('/update-user', async (req, res) => {
+  let { user_name, phone, email, id, current_pw, new_pw } = req.body;
+  phone = phone.replace(/-/g, '');
+  try {
+    const [rows] = await db.query('SELECT * FROM bda_user WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).send("존재하지 않는 사용자입니다.");
+    }
+    const user = rows[0];
+    // 평문으로 현재 비밀번호 비교
+    if (current_pw !== user.pw) {
+      return res.status(401).send("현재 비밀번호가 일치하지 않습니다.");
+    }
+    let finalPw = user.pw;
+    if (new_pw && pwRegex.test(new_pw)) {
+      finalPw = new_pw;
+    }
+    await db.query(
+      'UPDATE bda_user SET user_name=?, phone=?, email=?, pw=? WHERE id=?',
+      [user_name, phone, email, finalPw, id]
+    );
+    res.send("회원정보가 성공적으로 수정되었습니다.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("서버 오류");
+  }
+});
+
+/* 7. 파일 다운로드 */
+router.get('/download/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../../mnt/data', filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+  res.download(filePath, filename, (err) => {
+    if (err) {
+      console.error(err);
+      res.status(500).send('File download error');
+    }
+  });
+});
+
+/* 8. 로그아웃 */
+router.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login');
+  });
 });
 
 module.exports = router;
