@@ -6,6 +6,9 @@ from datetime import datetime
 import os
 import xml.etree.ElementTree as ET
 import geopandas as gpd
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+import uvicorn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_KEY = "igL+egVF9JN81AyFNoazNQWMirW9PqA6dJq6XjlAEo6xrBpEYD9XDLbJGsgwbmhjQCt477VACYblAWTSvTG8uw=="
 POP_URL = "https://api.odcloud.kr/api/15097972/v1/uddi:780a2373-bf11-4fb6-b3e4-ed4119571817"
@@ -798,28 +801,20 @@ def get_area_km2(sido: str, sgg: str, emd: str) -> float:
     total_area_sqm = target.geometry.area.sum()
     return total_area_sqm / 1_000_000  # ㎢
 
-# 메인 실행
-if __name__ == "__main__":
-    location = input("지역명 (예: 부산광역시 사하구 하단동): ").strip()
-    level = input("업종 분류 수준 (1=대, 2=중, 3=소): ").strip()
-    name = input("업종명: ").strip()
-
+def analyze_congestion(location: str, level: str, name: str) -> dict:
     try:
-        sido, sigungu, emd = location.split()
-    except:
-        print("❌ '시도 시군구 동' 형식으로 입력하세요.")
-        exit()
+        sido, sigungu, emd = location.strip().split()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="시도 시군구 동 형식으로 입력해야 함")
 
     reg_key = f"{sido} {sigungu}"
     signguCd = SIGNGU_CODE_MAP.get(reg_key)
     if not signguCd:
-        print("❌ 시군구 코드 없음.")
-        exit()
+        raise HTTPException(status_code=404, detail="시군구 코드 없음")
 
     adong_codes = get_adong_codes(signguCd, emd)
     if not adong_codes:
-        print("❌ 행정동 코드 없음.")
-        exit()
+        raise HTTPException(status_code=404, detail="행정동 코드 없음")
 
     if level == "1":
         indsCd = INDUSTRY_MAP.get(name)
@@ -829,8 +824,7 @@ if __name__ == "__main__":
         indsCd = SUB_INDUSTRY_MAP.get(name)
 
     if not indsCd:
-        print("❌ 업종 코드 없음.")
-        exit()
+        raise HTTPException(status_code=404, detail="업종 코드 없음")
 
     store_count = sum(get_store_count(code, indsCd, level) for code in adong_codes)
     total, male, female = get_population(emd)
@@ -845,23 +839,32 @@ if __name__ == "__main__":
 
     score = calc_score(sd, pd, max_sd, max_pd, male, female)
 
-    save_result_to_db({
-    "location": location,
-    "industry_level": level,
-    "industry_name": name,
-    "store_count": int(store_count),
-    "population_total": int(total),
-    "population_male": int(male),
-    "population_female": int(female),
-    "area_km2": float(area),
-    "population_density": float(pd),
-    "store_density": float(sd),
-    "gender_bias": gender,
-    "congestion_score": float(score)
-    })
+    result = {
+        "location": location,
+        "industry_level": level,
+        "industry_name": name,
+        "store_count": int(store_count),
+        "population_total": int(total),
+        "population_male": int(male),
+        "population_female": int(female),
+        "area_km2": float(area),
+        "population_density": float(pd),
+        "store_density": float(sd),
+        "gender_bias": gender,
+        "congestion_score": float(score),
+    }
 
-    print(f"\n✅ [{location}] '{name}' 업종 혼잡도 결과")
-    print(f"- 점포 수: {store_count}개 | 면적: {area:.4f}㎢")
-    print(f"- 인구: 총 {total}명 (남: {male}, 여: {female})")
-    print(f"- 밀도: 점포 {sd:.2f}/㎢, 인구 {pd:.2f}/㎢")
-    print(f"- 성비: {gender} | 혼잡도 점수: {score}점")
+    save_result_to_db(result)
+    return result
+
+# ---------- FastAPI 엔드포인트 ---------- #
+app = FastAPI(title="Business-District Congestion API")
+
+@app.get("/congestion")
+def get_congestion(location: str, level: str, name: str):
+    data = analyze_congestion(location, level, name)
+    return JSONResponse(content=data)
+
+# ---------- 로컬 실행 ---------- #
+if __name__ == "__main__":
+    uvicorn.run("Congestion-Analysis-Model:app", host="0.0.0.0", port=8000, reload=True)
