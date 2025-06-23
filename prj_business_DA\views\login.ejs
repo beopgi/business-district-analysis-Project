@@ -36,6 +36,17 @@
       border-radius: 6px;
       cursor: pointer;
     }
+    .btn-link {
+      display: block;
+      text-align: center;
+      margin-top: 12px;
+      color: #2ecc71;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .btn-link:hover {
+      text-decoration: underline;
+    }
   </style>
   <script>
     async function loginUser() {
@@ -50,14 +61,16 @@
       const res = await fetch('/api/v1/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userid, password })
+        body: JSON.stringify({ id: userid, pw: password })
       });
 
+      // 서버는 항상 { id: ... } 또는 { message: ... } 반환!
+      const result = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
-        location.href = '/main?id=' + encodeURIComponent(data.id);
-    } else {
-        alert("로그인 실패: 아이디 또는 비밀번호가 틀렸습니다.");
+        location.href = '/main?id=' + encodeURIComponent(result.id);
+      } else {
+        alert("로그인 실패: " + result.message);
       }
     }
   </script>
@@ -68,7 +81,8 @@
     <input id="userid" class="input-field" placeholder="아이디 입력" />
     <input id="password" class="input-field" type="password" placeholder="비밀번호 입력" />
     <button class="btn-submit" onclick="loginUser()">로그인</button>
-    <a href="/find" class="btn-link">아이디 / 비밀번호 찾기</a>
+    <a href="/find" class="btn-link">아이디/비밀번호 찾기</a>
+    <a href="/join" class="btn-link">아직 회원이 아니신가요? 회원가입</a>
   </div>
 </body>
 </html>
