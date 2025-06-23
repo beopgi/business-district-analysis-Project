@@ -8,7 +8,6 @@
       background: #f3f6fb;
       font-family: 'Segoe UI', sans-serif;
     }
-
     .container {
       max-width: 400px;
       margin: 40px auto;
@@ -17,12 +16,7 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-
-    h2 {
-      margin-top: 25px;
-      margin-bottom: 10px;
-    }
-
+    h2 { margin-top: 25px; margin-bottom: 10px; }
     .input-field {
       width: 100%;
       margin-bottom: 10px;
@@ -30,7 +24,6 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
-
     .btn-submit {
       width: 100%;
       background: #3498db;
@@ -42,7 +35,6 @@
       cursor: pointer;
       margin-bottom: 20px;
     }
-
     .btn-link {
       display: block;
       text-align: center;
@@ -51,20 +43,19 @@
       font-weight: bold;
       margin-top: 10px;
     }
-
     .btn-link:hover {
       text-decoration: underline;
     }
   </style>
-
   <script>
     async function findId() {
       const name = document.getElementById('find-id-name').value;
 
+      // KEY 명칭은 실제 DB와 맞추세요! (user_name or name)
       const res = await fetch('/api/v1/find-id', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name }) // 또는 user_name
       });
 
       const result = await res.text();
@@ -72,25 +63,25 @@
     }
 
     async function findPw() {
-  const userid = document.getElementById('find-pw-id').value;
-  const name = document.getElementById('find-pw-name').value;
+      const id = document.getElementById('find-pw-id').value;
+      const name = document.getElementById('find-pw-name').value;
 
-  const res = await fetch('/api/v1/find_pw', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userid, name })
-  });
+      // KEY 명칭은 실제 DB와 맞추세요! (id/userid, name/user_name)
+      const res = await fetch('/api/v1/find_pw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name })
+      });
 
-  if (res.ok) {
-    const data = await res.json();
-    alert("비밀번호 변경 페이지로 이동합니다.");
-    location.href = '/reset_pw?id=' + encodeURIComponent(data.id);
-  } else {
-    const msg = await res.text();
-    alert(msg);
-  }
-}
-
+      if (res.ok) {
+        const data = await res.json();
+        alert("비밀번호 변경 페이지로 이동합니다.");
+        location.href = '/reset_pw?id=' + encodeURIComponent(data.id);
+      } else {
+        const msg = await res.text();
+        alert(msg);
+      }
+    }
   </script>
 </head>
 <body>
