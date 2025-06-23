@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>회원정보 수정</title>
+  <style>
+    body {
+      background: #f3f6fb;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 30px;
+    }
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-bottom: 20px;
+      text-align: center;
+      color: #2c3e50;
+    }
+    .input-field {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .btn-submit {
+      width: 100%;
+      background: #2ecc71;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .btn-submit:hover {
+      background: #27ae60;
+    }
+    .btn-back {
+      display: block;
+      text-align: center;
+      margin-top: 15px;
+      color: #3498db;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .btn-back:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>회원정보 수정</h2>
+    <form onsubmit="updateUser(); return false;">
+      <input type="text" id="edit-name" class="input-field" placeholder="이름" value="<%= user_name %>" required />
+      <input type="text" id="edit-phone" class="input-field" placeholder="전화번호 (예: 010-1234-5678)" value="<%= phone %>" required />
+      <input type="email" id="edit-email" class="input-field" placeholder="이메일 (예: abcd1234@gmail.com)" value="<%= email %>" required />
+      <input type="text" id="edit-id" class="input-field" placeholder="아이디 (영문+숫자 조합, 8~16자)" value="<%= id %>" required />
+      <input type="password" id="edit-current-pw" class="input-field" placeholder="현재 비밀번호" required />
+      <input type="password" id="edit-new-pw" class="input-field" placeholder="새 비밀번호 (선택, 8~16자)" />
+      <button class="btn-submit">정보 수정</button>
+    </form>
+    <a href="/main" class="btn-back">← 메인 페이지로 돌아가기</a>
+  </div>
+
+  <script>
+    async function updateUser() {
+      const body = {
+        user_name: document.getElementById('edit-name').value,
+        phone: document.getElementById('edit-phone').value,
+        email: document.getElementById('edit-email').value,
+        id: document.getElementById('edit-id').value,
+        current_pw: document.getElementById('edit-current-pw').value,
+        new_pw: document.getElementById('edit-new-pw').value
+      };
+
+      const res = await fetch('/api/v1/update-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const msg = await res.text();
+      alert(msg);
+      if (res.ok) {
+        window.location.href = '/main'; // 성공 시 메인 페이지로 이동
+      }
+    }
+  </script>
+</body>
+</html>
