@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const express = require('express');
 const router = express.Router();
 const db = require('../../db_bda');
@@ -9,6 +10,7 @@ const idRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
 const pwRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
 
 /* 1. 회원가입 */
+// 기존 코드 중 회원가입 부분만!
 router.post('/join', async (req, res) => {
   let { user_name, phone, email, id, pw } = req.body;
   phone = phone.replace(/-/g, '');
@@ -26,10 +28,11 @@ router.post('/join', async (req, res) => {
     if (exists.length > 0) {
       return res.status(409).json({ message: "이미 존재하는 아이디입니다." });
     }
-    // 암호화 없이 평문 pw로 저장
+    // 👇 여기서 비밀번호를 해시화
+    const hash = await bcrypt.hash(pw, 10);
     await db.query(
       'INSERT INTO bda_user (user_name, phone, email, id, pw) VALUES (?, ?, ?, ?, ?)',
-      [user_name, phone, email, id, pw]
+      [user_name, phone, email, id, hash]
     );
     res.status(201).json({ message: "회원가입 성공" });
   } catch (err) {
@@ -37,6 +40,7 @@ router.post('/join', async (req, res) => {
     res.status(500).json({ message: "서버 오류" });
   }
 });
+
 
 /* 2. 로그인 */
 router.post('/login', async (req, res) => {
@@ -47,8 +51,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: '존재하지 않는 아이디입니다.' });
     }
     const user = rows[0];
-    // 암호화 없이 평문 비교
-    if (pw !== user.pw) {
+    // 👇 입력받은 pw와 DB의 해시값을 bcrypt로 비교
+    const match = await bcrypt.compare(pw, user.pw);
+    if (!match) {
       return res.status(401).json({ message: '비밀번호가 일치하지 않습니다.' });
     }
     req.session.userId = user.id;
@@ -58,6 +63,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: '서버 오류' });
   }
 });
+
 
 /* 3. 아이디 찾기 */
 router.post('/find-id', async (req, res) => {
@@ -99,8 +105,9 @@ router.post('/reset_pw', async (req, res) => {
     return res.status(400).send("비밀번호와 확인 값이 일치하지 않습니다.");
   }
   try {
-    // 평문으로 비밀번호 저장
-    const [result] = await db.query('UPDATE bda_user SET pw = ? WHERE id = ?', [newPw, id]);
+    // 👇 비밀번호를 해시화해서 저장
+    const hash = await bcrypt.hash(newPw, 10);
+    const [result] = await db.query('UPDATE bda_user SET pw = ? WHERE id = ?', [hash, id]);
     if (result.affectedRows === 0) {
       return res.status(404).send("해당 아이디가 존재하지 않습니다.");
     }
@@ -110,6 +117,7 @@ router.post('/reset_pw', async (req, res) => {
     res.status(500).send("서버 오류");
   }
 });
+
 
 /* 6. 회원정보 수정 */
 router.post('/update-user', async (req, res) => {
@@ -121,13 +129,15 @@ router.post('/update-user', async (req, res) => {
       return res.status(404).send("존재하지 않는 사용자입니다.");
     }
     const user = rows[0];
-    // 평문으로 현재 비밀번호 비교
-    if (current_pw !== user.pw) {
+    // 👇 현재 비번 확인 (입력값 vs 해시)
+    const match = await bcrypt.compare(current_pw, user.pw);
+    if (!match) {
       return res.status(401).send("현재 비밀번호가 일치하지 않습니다.");
     }
     let finalPw = user.pw;
     if (new_pw && pwRegex.test(new_pw)) {
-      finalPw = new_pw;
+      // 👇 새 비번도 해시!
+      finalPw = await bcrypt.hash(new_pw, 10);
     }
     await db.query(
       'UPDATE bda_user SET user_name=?, phone=?, email=?, pw=? WHERE id=?',
@@ -139,6 +149,7 @@ router.post('/update-user', async (req, res) => {
     res.status(500).send("서버 오류");
   }
 });
+
 
 /* 7. 파일 다운로드 */
 router.get('/download/:filename', (req, res) => {
